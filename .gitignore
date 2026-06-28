@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Data, checkpoints, and local outputs
+data/
+checkpoints/
+artifacts/
+**/artifacts/
+*.pt
+*.pth
+*.npy
+*.csv
+
+# Figures generated locally
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

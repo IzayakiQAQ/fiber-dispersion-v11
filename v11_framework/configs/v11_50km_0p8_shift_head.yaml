@@ -1,0 +1,62 @@
+framework: v11
+variant: shift_head_50km_0p8_v1
+input_dim: 65536
+num_pairs: 8640
+
+data:
+  scenario_manifest: "data/new_compensation_data_tensor_centered_1024/manifest.json"
+  target_policy: "fixed"
+  target_label: "d000km_bw0p8nm"
+  include_labels: "d050km_bw0p8nm"
+  exclude_labels: ""
+  split_policy: "blocked_nonoverlap_v1"
+
+teacher:
+  root: "checkpoints/v165_teacher"
+  dir1: "adaptivecheck_compensator_dir1.pt"
+  dir2: "adaptivecheck_compensator_dir2.pt"
+  physics_mode: "train"
+
+warm_start:
+  guard_dir: "v11_framework/artifacts/v11_50km_0p8_teacher_width_guard_v1"
+
+model:
+  sigma_init: 22.0
+  sigma_min: 1.0
+  sigma_max: 40.0
+  mix_init: 0.925
+  mix_min: 0.0
+  mix_max: 1.0
+  kernel_radius: 96
+  area_preserve: true
+  freeze_guard: true
+  max_abs_shift: 6.0
+  shift_channels: 24
+  shift_hidden: 48
+
+loss:
+  w_clock_mse: 800.0
+  w_tdev_abs: 7000.0
+  w_tdev_match: 1500.0
+  w_shift_l2: 0.015
+  w_shift_mean: 0.5
+  w_shift_smooth: 0.2
+  w_guarded_mse: 1.0
+  target_tdev_ps: 2.0
+  target_tdev_ratio_margin: 1.25
+  clock_center_half: 180
+  center_norm: 100.0
+
+eval:
+  center_method: "window_centroid"
+  batch_size: 64
+  sample_period_s: 10.0
+
+train:
+  batch_size: 128
+  epochs: 14
+  lr: 8.0e-4
+  seed: 42
+  num_workers: 0
+  shuffle: false
+  save_dir: "v11_framework/artifacts/v11_50km_0p8_shift_head_v1"

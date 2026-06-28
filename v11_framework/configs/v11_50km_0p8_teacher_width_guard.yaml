@@ -1,0 +1,58 @@
+framework: v11
+variant: teacher_width_guard_50km_0p8_v1
+input_dim: 65536
+num_pairs: 8640
+
+data:
+  scenario_manifest: "data/new_compensation_data_tensor_centered_1024/manifest.json"
+  target_policy: "fixed"
+  target_label: "d000km_bw0p8nm"
+  include_labels: "d050km_bw0p8nm"
+  exclude_labels: ""
+  split_policy: "blocked_nonoverlap_v1"
+
+teacher:
+  root: "checkpoints/v165_teacher"
+  dir1: "adaptivecheck_compensator_dir1.pt"
+  dir2: "adaptivecheck_compensator_dir2.pt"
+  physics_mode: "train"
+
+model:
+  sigma_init: 8.0
+  sigma_min: 1.0
+  sigma_max: 40.0
+  mix_init: 0.75
+  mix_min: 0.0
+  mix_max: 1.0
+  kernel_radius: 96
+  area_preserve: true
+
+loss:
+  w_window_l1: 8.0
+  w_window_mse: 18.0
+  w_width_match: 150.0
+  w_width_band: 300.0
+  w_center: 10.0
+  w_teacher_center: 80.0
+  w_area: 0.2
+  w_teacher_delta: 0.01
+  width_min_ratio: 0.90
+  width_max_ratio: 1.18
+  window_half: 220
+  width_half: 500
+  center_norm: 100.0
+  width_norm: 100.0
+
+eval:
+  center_method: "window_centroid"
+  batch_size: 64
+  sample_period_s: 10.0
+
+train:
+  batch_size: 32
+  epochs: 8
+  lr: 2.0e-2
+  seed: 42
+  num_workers: 0
+  shuffle: true
+  save_dir: "v11_framework/artifacts/v11_50km_0p8_teacher_width_guard_v1"

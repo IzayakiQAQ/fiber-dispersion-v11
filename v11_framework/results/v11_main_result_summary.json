@@ -1,0 +1,18 @@
+{
+  "framework": "v11",
+  "variant": "teacher_width_guard_50km_0p8_v1",
+  "scenario": "50km / 0.8nm",
+  "target": "0km / 0.8nm",
+  "test_split": "769-1024",
+  "metrics": {
+    "input_tdev10_ps": 32.8900668502231,
+    "teacher_tdev10_ps": 2.815774427975932,
+    "v11_tdev10_ps": 2.813415893945157,
+    "target_tdev10_ps": 1.1101776406504364,
+    "input_fwhm": 224.166015625,
+    "teacher_fwhm": 35.02734375,
+    "v11_fwhm": 51.61328125,
+    "target_fwhm": 48.736328125,
+    "v11_target_fwhm_ratio": 1.0730332709702175
+  }
+}
