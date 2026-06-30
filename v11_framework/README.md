@@ -43,6 +43,9 @@ while correcting the over-narrow peak shape back to the 0km reference range.
 - `V11_FINAL_REPORT_CN.md`: final Chinese report for thesis/presentation use.
 - `V11_TEACHER_WIDTH_GUARD_RESULT_CN.md`: detailed width-guard result note.
 - `V11_SHIFT_HEAD_EXPERIMENT_CN.md`: archived negative experiment note.
+- `results/DCM_50KM_100HZ_ANALYSIS_CN.md`: hardware DCM reference analysis.
+- `results/NEW_50KM_280HZ_BASELINE_ANALYSIS_CN.md`: no-DCM 50km/280Hz
+  raw baseline analysis from 1000 histograms.
 
 ## Reproduce Main Training
 

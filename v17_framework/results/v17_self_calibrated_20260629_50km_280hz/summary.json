@@ -1,0 +1,133 @@
+{
+  "framework": "v17",
+  "variant": "self_calibrated_effective_dispersion_likelihood_reader",
+  "source": "E:\\lzy\\测试结果\\2026.6.29 50km 280Hz",
+  "template_manifest": "E:\\lzy\\crosscorrelation compensation\\repositories\\fiber-dispersion-v11-paper\\v17_framework\\artifacts\\template_bank_v1\\template_manifest.json",
+  "count": 1000,
+  "config": {
+    "target_template_fraction": 0.67,
+    "width_penalty": 4.0,
+    "blend_scale": 1.2,
+    "clip_fraction": 0.095,
+    "background_prior": 0.001
+  },
+  "raw_tdev10_ps": 4.098370785271302,
+  "v17_tdev10_ps": 2.3399024721849995,
+  "raw_tdev_curve_ps": {
+    "10": 4.098370785271302,
+    "20": 2.073226139343601,
+    "30": 1.4371775824913138,
+    "60": 0.7237426471993084,
+    "100": 0.4148524745529765,
+    "200": 0.20102580497313852,
+    "300": 0.13839563004289238,
+    "600": 0.06650156509728328,
+    "1000": 0.04203814500266796,
+    "2000": 0.020691150863461728,
+    "3000": 0.012982484922645645
+  },
+  "v17_tdev_curve_ps": {
+    "10": 2.3399024721849995,
+    "20": 1.2272404502996428,
+    "30": 0.8091717558257653,
+    "60": 0.4063215613240806,
+    "100": 0.23846089754125696,
+    "200": 0.1200663234780905,
+    "300": 0.0809666566702788,
+    "600": 0.03936138578415374,
+    "1000": 0.02438186560563441,
+    "2000": 0.012190889044799808,
+    "3000": 0.007834220413899714
+  },
+  "raw_clock_ps": {
+    "mean": -12579.374371449765,
+    "std": 4.162967423484138,
+    "min": -12591.656102645102,
+    "p05": -12586.134800448073,
+    "median": -12579.278822127297,
+    "p95": -12572.481884796518,
+    "max": -12566.661011596487
+  },
+  "v17_clock_ps": {
+    "mean": -12576.499456138305,
+    "std": 2.450465332472333,
+    "min": -12586.386934082228,
+    "p05": -12580.55707193807,
+    "median": -12576.45954319365,
+    "p95": -12572.667761187999,
+    "max": -12569.646816338369
+  },
+  "input_fwhm_gaussian_ps": {
+    "mean": 505.97250892247064,
+    "std": 8.745006634640344,
+    "min": 471.11610692147843,
+    "p05": 491.817270110641,
+    "median": 506.02829348865714,
+    "p95": 520.208622693293,
+    "max": 533.1234535346164
+  },
+  "v17_delta_ps": {
+    "mean": -20.967390796061252,
+    "std": 5.381260616285063,
+    "min": -37.47471027909105,
+    "p05": -29.911305963029427,
+    "median": -20.93573202215839,
+    "p95": -12.189805431622684,
+    "max": -5.762975347526173
+  },
+  "v17_raw_delta_ps": {
+    "mean": -12.202309734990951,
+    "std": 3.05816272611015,
+    "min": -21.70485707630758,
+    "p05": -17.352841176988218,
+    "median": -12.194711849087412,
+    "p95": -7.204829271573188,
+    "max": -3.4493694470451506
+  },
+  "v17_blend": {
+    "mean": 1.7156907443856908,
+    "std": 0.02814792627742117,
+    "min": 1.641055759353506,
+    "p05": 1.6655857433250234,
+    "median": 1.7160038976124565,
+    "p95": 1.757886531469771,
+    "max": 1.7742852672578318
+  },
+  "v17_clip_ps": {
+    "mean": 48.06738834763471,
+    "std": 0.8307756302908325,
+    "min": 44.75603015754045,
+    "p05": 46.7226406605109,
+    "median": 48.072687881422425,
+    "p95": 49.41981915586284,
+    "max": 50.64672808578855
+  },
+  "v17_template_fwhm_ps": {
+    "mean": 353.9027736708031,
+    "std": 3.4928737557316967,
+    "min": 342.83786795273227,
+    "p05": 350.0870975910549,
+    "median": 355.3324542154472,
+    "p95": 359.4929386474927,
+    "max": 367.32891697999685
+  },
+  "selected_labels": [
+    "d025km_bw0p8nm",
+    "d050km_bw0p8nm"
+  ],
+  "selected_smooth_values": [
+    100.0,
+    120.0
+  ],
+  "selected_background_values": [
+    0.001
+  ],
+  "outputs": {
+    "raw_four_column_csv": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\raw_time_t1_t2_t0_quality.csv",
+    "four_column_csv": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\time_t1_t2_t0_four_columns.csv",
+    "detail_csv": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\pair_detail.csv",
+    "example_csv": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\processed_example_histogram_00001.csv",
+    "example_png": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\processed_example_histogram_00001.png",
+    "summary": "fiber-dispersion-v11-paper\\v17_framework\\results\\v17_self_calibrated_20260629_50km_280hz\\summary.json"
+  }
+}
