@@ -1,0 +1,31 @@
+# Local exploratory branches retained for audit but excluded from the final delivery.
+build_0km_*.py
+build_full_physical_*.py
+build_v18_*.py
+diagnose_*.py
+direct_neural_*.py
+dispersion_features.py
+extract_physical_features_*.py
+fisher_decoded_*.py
+poisson_fisher.py
+preprocess_external_*.py
+rebuild_0km_*.py
+run_0km_*.py
+run_external_physical_*.py
+run_external_template_*.py
+run_fisher_*.py
+run_full_physical_*.py
+run_locked_physical_*.py
+run_physical_residual_*.py
+run_raw_flat_*.py
+run_training_*.py
+run_v18_*.py
+test_dispersion_features.py
+test_physical_residual_pipeline.py
+test_poisson_fisher.py
+train_direct_neural_*.py
+train_direct_physical_*.py
+tune_v17_*.py
+
+# Experimental inputs, fitted models, figures, and derived result tables stay local.
+results/

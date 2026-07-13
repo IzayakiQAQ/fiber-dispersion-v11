@@ -97,6 +97,8 @@ direction = 1, 2
 
 ### Single-Histogram Self Calibration
 
+> 本节描述旧 V17 likelihood/Fisher-score 中心读数基线，不是最终 RL 直方图补偿算子。
+
 对每张输入直方图：
 
 1. 使用已有窄窗口 Gaussian 质量读数作为初始中心。
@@ -194,9 +196,9 @@ V17 结果支持以下结论：
 3. 模板似然读数器可以在不使用时间序列后处理的情况下把 TDEV@10s 从 `4.10 ps` 降到 `2.34 ps`。
 4. 只压窄峰形是不够的，必须同时优化中心读数统计量。
 
-## Current Limitation
+## Legacy V17 Parameter Status
 
-V17 已经把 V16 的外部手动参数扫描改成单图自标定，但以下常数仍是物理启发设置：
+以下常数只用于旧 V17 likelihood/Fisher-score 中心修正：
 
 ```text
 target_template_fraction = 0.67
@@ -204,11 +206,7 @@ blend_scale = 1.2
 clip_fraction = 0.095
 ```
 
-论文最终严格版本建议：
-
-1. 使用一组独立验证数据锁定这些常数。
-2. 参数锁定后，再把 `2026.6.29 50km 280Hz` 或另一批数据作为纯测试集。
-3. 报告 raw、V17、硬件 DCM 或 V1.65/V11 legacy baseline 的统一 TDEV 和 FWHM 对比。
+`0.67` 选择目标模板宽度，`1.2` 放大 Fisher-score 位移，`0.095` 限制该位移。最终 RL 管线不使用这三个参数；它们不参与 broad-PSF 构造、RL 更新、目标 PSF 卷积或输出中心读取。论文中若保留，应放入 legacy baseline 或 Supplement，而不是最终方法参数表。
 
 ## Legacy V11
 

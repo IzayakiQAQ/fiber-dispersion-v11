@@ -71,6 +71,7 @@ def load_external_rows(source_root: Path, bank: TemplateBank, args: argparse.Nam
                     "quality_center_idx": float(center_idx),
                     "input_sigma_ps": sigma,
                     "input_fwhm_gaussian_ps": 2.354820045 * sigma if np.isfinite(sigma) else np.nan,
+                    "gaussian_residual_rms": float(quality.get("residual_rms", np.nan)),
                     "total_count": float(np.sum(counts)),
                     "local_count": float(np.sum(local)),
                     "local": local,
