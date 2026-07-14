@@ -1,204 +1,125 @@
-# Fiber Dispersion Compensation V17
+# Fiber Dispersion Compensation
 
-本仓库整理用于论文写作和复现实验的色散补偿模型。当前主线是 **V17 单直方图自标定似然读数器**：
-
-```text
-single histogram
-  -> quality Gaussian initial center
-  -> estimate effective broadening from peak width
-  -> select matched training template
-  -> Poisson/Fisher score center correction
-  -> corrected t1, t2, t0
-```
-
-核心目标不是依赖长时间序列做后处理，而是在实验时输入单张符合峰直方图，直接得到补偿后的中心读数。长时间数据只用于训练、验证和评估 TDEV。
-
-## Current Main Result
-
-外部测试数据：
+本仓库用于单直方图光纤色散补偿与论文结果复现。当前主线是**无状态 Richardson-Lucy（RL）直方图到直方图补偿器**：系统每次输入一张固定横轴符合直方图，模型直接输出一张非负、计数守恒的补偿直方图。
 
 ```text
-E:\lzy\测试结果\2026.6.29 50km 280Hz
+one raw histogram
+  -> Gaussian coarse localization and 2049-bin crop
+  -> edge-background subtraction and normalization
+  -> direction-specific RL deconvolution
+  -> convolution with direction-specific physical 0 km target PSF
+  -> restore background and total count
+  -> one compensated histogram
 ```
 
-这批 1000 张直方图没有参与 V10/V11/V15/V17 模板训练。
+推理不使用相邻直方图、整段钟差序列或运行级统计量，也不在输出后执行 bounded center correction。最终方法不是模板加权混合，也不是 V1.65/V11 神经网络输出。
 
-| Method | TDEV@10s | Clock std | Notes |
-|---|---:|---:|---|
-| Raw quality Gaussian center | 4.098 ps | 4.163 ps | 原始宽峰中心读数 |
-| V16 fixed diagnostic reader | 2.346 ps | 2.442 ps | 外部诊断参数，非严格泛化 |
-| V17 self-calibrated reader | 2.340 ps | 2.450 ps | 单图估计等效展宽并自动定参 |
+## Locked Operator
 
-V17 在该外部数据上自动选择：
-
-| Quantity | Value |
+| Quantity | Final value |
 |---|---:|
-| selected labels | `d025km_bw0p8nm`, `d050km_bw0p8nm` |
-| selected smooth | `100 ps`, `120 ps` |
-| selected background | `0.001` |
-| mean input Gaussian FWHM | `505.97 ps` |
-| mean selected template FWHM | `353.90 ps` |
-| mean automatic blend | `1.716` |
-| mean automatic clip | `48.07 ps` |
+| RL iterations | `512` |
+| Background bins | each edge `160 bins` |
+| RL ratio clip | `8.0` |
+| Latent probability floor | `1e-8` |
+| Local histogram length | `2049 bins` (`-1024` to `+1024 ps`) |
+| Physical 0 km target | direction 1 `166 ps`, direction 2 `160 ps` |
+| Center readout window | peak `+/-180 bins` |
 
-Main report:
+两个传播方向分别保存独立的 `broad_psf` 和 `target_psf`。`broad_psf` 由校准段前500张直方图按方向独立做背景扣除、概率归一化和平均得到。
 
-```text
-v17_framework/results/V17_SELF_CALIBRATED_LIKELIHOOD_READER_20260629_50KM_280HZ_RESULT_CN.md
-```
-
-Main summary:
+最终方向中心为：
 
 ```text
-v17_framework/results/v17_self_calibrated_20260629_50km_280hz/summary.json
+raw Gaussian coarse absolute center
+  + compensated local background-subtracted center of mass
+  - local-window midpoint
 ```
 
-## Scientific Motivation
+因此，最终中心既不是对补偿直方图再次做 Gaussian fit，也没有 Gaussian fit 后的 bounded correction。补偿后 FWHM 则由输出直方图的亚 bin 半高交点独立计算。
 
-50 km 色散会显著展宽符合峰。宽峰不会只改变 FWHM，也会降低单次中心读数精度，因此 TDEV 变差。单纯把峰形压窄并不一定降低 TDEV，因为如果补偿网络引入中心偏移噪声，稳定性反而会变差。
+## External Result
 
-V17 的基本判断是：
+本地外部评估使用1000组 `50 km / 280 Hz` 数据。下表数值来自实际输出直方图；实验数据和派生结果不随 Git 上传。
 
-1. 直方图峰形包含等效色散或等效展宽状态。
-2. 训练数据中的不同距离/带宽样本可以提供峰形模板先验。
-3. 中心读数应由物理似然给出，而不是由神经网络自由回归。
-4. 神经网络或自标定模块应负责选择模板、展宽和修正强度，而不是直接任意移动中心。
+| Metric | Before | Direct RL output |
+|---|---:|---:|
+| TDEV@10 s, full 1000 | 4.098 ps | 2.380 ps |
+| TDEV@10 s, held-out 501-1000 | 4.036 ps | 2.485 ps |
+| Median FWHM | 506.0 ps | 174.1 ps |
+| Width reduction | 1.00x | 2.91x |
+| Stability improvement | 1.00x | 1.72x |
 
-因此，V17 把问题写成：
+独立外部数据上的 `1.6 ps` 目标尚未达到，因此仓库不作该项声明。
 
-```text
-histogram shape -> effective broadening state -> likelihood reader parameters -> bounded Fisher correction
-```
+论文硬件对比的条件级结果为：硬件色散补偿模块在 `100 Hz` 下 TDEV@10 s 为 `2.130 ps`，指定 ch1-ch3 直方图中位 FWHM 为 `187.1 ps`。硬件 FWHM 与 TDEV 属于相同实验条件，但不是1000组逐样本配对数据。
 
-## V17 Method
+## 0 km Reference
 
-V17 使用 V10 预处理后的居中训练直方图构建模板库。默认模板来源：
+`build_fig5_0km_reference.py` 按 Fig.5 相同口径导出逐峰对齐、概率归一化、平均和峰值归一化的0 km参考数据。
 
-```text
-E:\lzy\测试结果\补偿数据
-```
+本地结果使用 `2026.3.5 0km 2m单边_Merged`，每个方向8640张直方图：
 
-默认模板标签：
+| Curve | Half-maximum FWHM |
+|---|---:|
+| Measured direction 1 | 198.67 ps |
+| Measured direction 2 | 169.36 ps |
+| Measured two-direction aligned average | 182.26 ps |
+| Corrected physical target average | 163.74 ps |
 
-```text
-d025km_bw0p8nm
-d050km_bw0p8nm
-d075km_bw0p8nm
-d100km_bw0p8nm
-```
-
-每个模板会生成多组候选：
-
-```text
-smooth = 20, 40, 60, 80, 100, 120, 160, 200 ps
-background = 0.0003, 0.0005, 0.001, 0.003, 0.005, 0.01
-direction = 1, 2
-```
-
-### Single-Histogram Self Calibration
-
-> 本节描述旧 V17 likelihood/Fisher-score 中心读数基线，不是最终 RL 直方图补偿算子。
-
-对每张输入直方图：
-
-1. 使用已有窄窗口 Gaussian 质量读数作为初始中心。
-2. 截取初始中心附近局部窗口。
-3. 从输入峰宽估计等效模板宽度：
-
-```text
-target_template_fwhm = 0.67 * input_fwhm
-```
-
-4. 用宽度一致性、背景先验和 Poisson likelihood 选择候选模板。
-5. 用模板导数计算 Fisher score 的一阶中心修正。
-6. 根据输入峰宽和模板峰宽自动确定修正强度：
-
-```text
-blend = 1.2 * input_fwhm / selected_template_fwhm
-clip  = 0.095 * input_fwhm
-```
-
-7. 输出修正后的 `t1`, `t2`, `t0`。
-
-V17 不使用随机 sub-bin shift augmentation。
+实测0 km曲线和校正物理目标曲线在源数据中分列保存。`163.74 ps` 是算法目标，不应表述成一批新的独立实测结果。
 
 ## Repository Layout
 
 ```text
 v17_framework/
-  build_template_bank.py        # Build template bank from V10 centered tensors
-  likelihood_reader.py          # Template selection and Poisson/Fisher readout
-  run_external_50km_280hz.py    # External 50km/280Hz inference entry
-  v17_common.py                 # Shared IO, TDEV, FWHM, CSV utilities
-  README.md                     # V17 short technical note
-  results/
-    V17_SELF_CALIBRATED_LIKELIHOOD_READER_20260629_50KM_280HZ_RESULT_CN.md
-    v17_self_calibrated_20260629_50km_280hz/
-      summary.json
-      time_t1_t2_t0_four_columns.csv      # ignored by git, generated locally
+  direct_histogram_compensator.py          # Core nonnegative RL operator
+  public_compensated_histogram_operator.py # Minimal public inference API
+  run_direct_histogram_external_1000.py    # Calibration, selection and 1000-group evaluation
+  build_physical_0km_target_psf.py         # Corrected physical 0 km target builder
+  build_paper_comparison_dcm_vs_direct.py  # Paper tables, curves and Fig.1-Fig.5
+  build_fig5_0km_reference.py              # Fig.5-style 0 km aligned reference
+  verify_final_delivery.py                 # Local model/result consistency audit
+  test_direct_histogram_compensator.py     # Unit and batch-equivalence tests
+  likelihood_reader.py                     # Legacy V17 Fisher-score baseline
 
 v11_framework/
-  Legacy V11 teacher-guided width-guard baseline and reports.
+  Legacy V11 teacher-guided neural baseline.
 ```
-
-Large local data, checkpoints, tensors, CSV outputs and figures are intentionally ignored by git.
 
 ## Reproduce
 
-Use a Python environment with `numpy`, `scipy`, `matplotlib`, and `torch`.
+Use Python with `numpy`, `scipy`, `matplotlib`, and optionally CUDA-enabled `torch` for accelerated batch inference.
 
-Build the V17 template bank:
-
-```powershell
-python .\v17_framework\build_template_bank.py
-```
-
-Run the external 50 km / 280 Hz evaluation:
+From the repository root:
 
 ```powershell
-python .\v17_framework\run_external_50km_280hz.py
+python .\v17_framework\run_direct_histogram_external_1000.py
+python .\v17_framework\build_paper_comparison_dcm_vs_direct.py
+python .\v17_framework\build_fig5_0km_reference.py
+python .\v17_framework\verify_final_delivery.py
+python -m pytest .\v17_framework\test_direct_histogram_compensator.py -q
 ```
 
-Optional: use another fixed-axis histogram dataset:
+The public deployment entry is:
 
-```powershell
-python .\v17_framework\run_external_50km_280hz.py `
-  --source-root "E:\lzy\测试结果\your_external_dataset" `
-  --output-dir ".\v17_framework\results\your_output_dir"
+```python
+from pathlib import Path
+
+from public_compensated_histogram_operator import infer_with_saved_model
+
+compensated = infer_with_saved_model(
+    raw_local_histogram,
+    direction=1,
+    model_path=Path("results/v24_direct_histogram_external_1000_physical_0km/direct_histogram_model.npz"),
+)
 ```
 
-The output directory contains:
+The saved model and local result package must be supplied separately because experimental arrays are intentionally excluded from Git.
 
-```text
-raw_time_t1_t2_t0_quality.csv
-time_t1_t2_t0_four_columns.csv
-pair_detail.csv
-processed_example_histogram_00001.png
-summary.json
-```
+## Legacy Parameters
 
-## Paper-Oriented Description
-
-可在论文中表述为：
-
-> We propose a self-calibrated physics-constrained likelihood reader for single-histogram dispersion compensation. Instead of directly regressing the time center, the method estimates an effective broadening state from the measured coincidence peak, selects a matched template from training data, and computes a bounded Poisson/Fisher score correction. This design preserves center information while improving the statistical efficiency of the center estimator.
-
-中文表述：
-
-> 本文提出一种单直方图自标定的物理约束似然读数器。该方法不直接由神经网络自由回归时间中心，而是根据符合峰宽度估计等效色散展宽状态，在训练模板库中选择匹配的峰形模板，并通过 Poisson/Fisher score 给出受限中心修正，从而在保持中心信息的同时降低宽峰条件下的中心读数方差。
-
-## What This Result Supports
-
-V17 结果支持以下结论：
-
-1. 宽峰导致的中心读数方差确实是 50 km / 280 Hz 数据 TDEV 偏大的主要来源之一。
-2. 单张直方图包含可用于估计等效展宽状态的信息。
-3. 模板似然读数器可以在不使用时间序列后处理的情况下把 TDEV@10s 从 `4.10 ps` 降到 `2.34 ps`。
-4. 只压窄峰形是不够的，必须同时优化中心读数统计量。
-
-## Legacy V17 Parameter Status
-
-以下常数只用于旧 V17 likelihood/Fisher-score 中心修正：
+旧 V17 likelihood/Fisher-score 中心修正使用：
 
 ```text
 target_template_fraction = 0.67
@@ -206,8 +127,8 @@ blend_scale = 1.2
 clip_fraction = 0.095
 ```
 
-`0.67` 选择目标模板宽度，`1.2` 放大 Fisher-score 位移，`0.095` 限制该位移。最终 RL 管线不使用这三个参数；它们不参与 broad-PSF 构造、RL 更新、目标 PSF 卷积或输出中心读取。论文中若保留，应放入 legacy baseline 或 Supplement，而不是最终方法参数表。
+三者分别选择目标模板宽度、放大 Fisher-score 位移、限制该位移。它们**不进入最终 RL 管线**，不参与 broad-PSF 构造、RL 更新、目标 PSF 卷积或补偿后中心读取；论文中若保留，应放入 legacy baseline 或 Supplement。
 
-## Legacy V11
+## Data Policy
 
-`v11_framework` 保留早期 V11 teacher-guided width-guard baseline。它用于说明纯神经网络补偿峰形与中心稳定性之间的矛盾，也可作为论文中的 negative/legacy baseline。
+Git 只保存代码和方法说明。原始/中间直方图、校准 PSF、拟合模型、CSV、NPZ、PDF、PNG及论文派生结果均保留在本机 `artifacts/` 和 `results/`，不上传到远端仓库。
