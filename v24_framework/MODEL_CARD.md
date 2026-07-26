@@ -64,3 +64,15 @@ responses. The first 500 pairs formed the calibration segment, and pairs
 - Width reduction does not by itself guarantee proportional TDEV reduction.
 - Experimental source histograms are not included in Git; only the compact
   deployable model and physical target PSF are included.
+
+## Optional Physics-Informed Extension
+
+`physics_informed/` is an experimental adaptive extension and is not part of
+the locked NPZ result above. It calibrates an effective CW-PPLN/WSS/SMF timing
+model from local measured histograms, selects a generated response from one
+input histogram, and applies count-adaptive RL with a no-harm gate.
+
+Its calibration JSON is condition- and histogram-construction-family specific.
+The extension must report condition holdouts separately from incompatible
+layout audits, and synthetic samples alone must not be used to claim long-term
+TDEV. See `PHYSICS_INFORMED.md` for the model and claim boundaries.

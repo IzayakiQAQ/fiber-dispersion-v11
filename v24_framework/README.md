@@ -154,6 +154,62 @@ On the locked 1000-pair external `50 km / 280 Hz` evaluation:
 
 The independent `1.6 ps` target was not reached and is not claimed.
 
+## Physics-Informed Extension
+
+The locked operator above remains the reproducible `50 km / 280 Hz`
+baseline. The optional `physics_informed` package extends v24 to unknown
+length/bandwidth conditions without changing the saved baseline model.
+
+The forward model represents the actual experiment as a CW C46-pumped,
+cascaded SHG/type-0-SPDC PPLN source, an energy-anticorrelated C57/C35 pair,
+two nominal Gaussian WSS intensity filters, single-mode-fiber spectral phase,
+a fitted direction-specific timing IRF, and Poisson counting. Only effective
+parameters identifiable from coincidence histograms are fitted.
+
+Build the condition manifest and calibrate on measured histograms:
+
+```powershell
+python .\v24_framework\run_physics_calibration.py `
+  --dataset-root "E:\lzy\测试结果\补偿数据" `
+  --output-dir .\v24_framework\results\physics_calibration
+```
+
+Strict length and bandwidth holdouts can be selected without moving files:
+
+```powershell
+python .\v24_framework\run_physics_calibration.py `
+  --calibration-layout channel_subdirectories `
+  --calibration-layout pair_subdirectories `
+  --holdout-length-km 125 `
+  --holdout-bandwidth-nm 10
+```
+
+The command reads the 1 ps / 10 s histogram CSVs directly. Raw event
+timestamps are not required. It supports all three layouts currently present
+in the experiment archive: sequential directions in one folder,
+channel-labelled direction folders, and `pair0`/`pair1` folders.
+
+Outputs include a compact dataset manifest, measured aggregate profiles,
+calibrated physical parameters, measured-versus-predicted condition metrics,
+and a virtual length/bandwidth grid. Generated results remain ignored by Git.
+See `PHYSICS_INFORMED.md` for model equations, assumptions, and validation
+boundaries.
+
+Apply the calibrated response manifold to one full-axis histogram:
+
+```powershell
+python .\v24_framework\run_physics_inference.py input.csv `
+  --direction 1 `
+  --calibration-json .\v24_framework\results\physics_calibration\physics_calibration.json `
+  --output-csv output_physics_v24.csv
+```
+
+Inference uses only that histogram. Candidate responses that exceed the
+configured time window are rejected instead of being silently wrapped by the
+FFT. The JSON sidecar records the selected effective condition, fit
+divergence, Fisher-information gate, iteration count, centers, widths, and
+count conservation.
+
 ## Files
 
 ```text
@@ -165,12 +221,20 @@ v24_framework/
   run_direct_histogram_external_1000.py
   v24_common.py
   verify_release.py
+  run_physics_calibration.py
+  run_physics_inference.py
+  PHYSICS_INFORMED.md
+  physics_informed/
+    adaptive_compensator.py
+    dataset.py
+    forward_model.py
   MODEL_CARD.md
   models/
     direct_histogram_model_v24.npz
     physical_0km_target_psf.npz
   tests/
     test_v24_compensator.py
+    test_physics_informed.py
 ```
 
 The earlier `v17_framework` remains in the repository for audit and paper

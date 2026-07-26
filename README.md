@@ -1,78 +1,69 @@
 # Fiber Dispersion Compensation
 
-本仓库用于单直方图光纤色散补偿与论文结果复现。当前正式发布版本是
-**v24 无状态 Richardson-Lucy 直方图补偿器**。
+本仓库用于量子双向时间同步中的单直方图光纤色散补偿与论文结果复现。当前正式版本为
+[`v24_framework`](v24_framework/)；`v17_framework` 和 `v11_framework` 保留用于审计历史方法。
 
-## 当前版本
+## V24 锁定基线
 
-新项目请直接使用 [`v24_framework`](v24_framework/)。
+锁定基线对每幅直方图独立执行：
 
 ```text
-one raw histogram
-  -> Gaussian coarse localization and 2049-bin crop
-  -> direction-specific Richardson-Lucy deconvolution
-  -> direction-specific physical 0 km target response
-  -> one nonnegative, count-preserving compensated histogram
+原始直方图
+  -> Gaussian 粗定位与 2049-bin 截取
+  -> 方向独立 Richardson-Lucy 反卷积
+  -> 方向独立 0 km 物理目标响应卷积
+  -> 非负、计数守恒的补偿直方图
 ```
 
-最终 v24：
-
-- 每次只输入一张直方图，不使用相邻样本或整段钟差序列。
-- 两个传播方向分别使用独立的 broad PSF 和 target PSF。
-- Richardson-Lucy 固定为 `512` 次迭代。
-- 每侧 `160 bins` 估计背景。
-- 输出中心在补偿后局部峰 `+/-180 bins` 内做背景扣除质心。
-- 不执行 bounded center correction。
-- 不使用旧 V17 的 `eta=0.67`、`blend_scale=1.2`、
-  `clip_fraction=0.095`。
-
-仓库已包含最终双方向模型，因此克隆后安装 `numpy` 和 `scipy` 即可推理：
+它不使用相邻直方图、整段钟差序列或 bounded center correction。外部 1000 组
+`50 km / 280 Hz` 锁定结果为：FWHM 中位数从 506.0 ps 降至 174.1 ps，完整序列
+TDEV@10 s 从 4.098 ps 降至 2.380 ps。独立的 1.6 ps 目标尚未达到，因此不作该项声明。
 
 ```powershell
 python -m pip install -r .\v24_framework\requirements.txt
-
 python .\v24_framework\run_inference.py input.csv `
   --direction 1 `
   --output-csv output_v24.csv
 ```
 
-Python API：
+## Physics-Informed 扩展
 
-```python
-from v24_framework import V24Compensator
+v24 现包含一个可选的 physics-informed 扩展，用于从实测条件校准物理响应流形，并在
+推理时仅根据当前一幅直方图选择有效补偿响应。模型包含：
 
-operator = V24Compensator()
-compensated = operator.infer_local(raw_local_histogram, direction=1)
+- C46 连续泵浦、PPLN 级联 SHG/type-0 SPDC；
+- C57/C35 能量反关联光子对；
+- 两个标称 Gaussian WSS 强度滤波器；
+- 普通单模光纤二/三阶谱相位；
+- 方向相关等效探测/时间标记 IRF；
+- Poisson 符合计数与边缘背景。
+
+校准直接读取 1 ps/bin、10 s 积分的直方图，不需要原始事件时间戳：
+
+```powershell
+python .\v24_framework\run_physics_calibration.py `
+  --dataset-root "E:\lzy\测试结果\补偿数据" `
+  --calibration-layout channel_subdirectories `
+  --calibration-layout pair_subdirectories `
+  --holdout-length-km 125 `
+  --holdout-bandwidth-nm 10
 ```
 
-完整横轴直方图可使用 `operator.infer_full(...)`，程序会独立定位主峰并截取
-2049-bin 模型窗口。
+然后对单幅完整横坐标直方图推理：
 
-详细参数、输入格式、重新校准和验证方法见
-[`v24_framework/README.md`](v24_framework/README.md) 与
-[`v24_framework/MODEL_CARD.md`](v24_framework/MODEL_CARD.md)。
-
-## 锁定结果
-
-外部 1000 组 `50 km / 280 Hz` 评估：
-
-| 指标 | 补偿前 | v24 输出 |
-|---|---:|---:|
-| 全部1000组 TDEV@10 s | 4.098 ps | 2.380 ps |
-| 严格留出501-1000组 TDEV@10 s | 4.036 ps | 2.485 ps |
-| 中位 FWHM | 506.0 ps | 174.1 ps |
-| 宽度压缩 | 1.00x | 2.91x |
-| 稳定性提升 | 1.00x | 1.72x |
-
-独立外部数据上的 `1.6 ps` 目标尚未达到，因此本仓库不作该项声明。
-
-## 仓库结构
-
-```text
-v24_framework/  # 当前完整发布：代码、模型、CLI、测试与重校准脚本
-v17_framework/  # 论文开发过程、旧 V17 基线及审计材料
-v11_framework/  # V11 teacher-guided 神经网络基线
+```powershell
+python .\v24_framework\run_physics_inference.py input.csv `
+  --direction 1 `
+  --calibration-json .\v24_framework\results\physics_informed_calibration\physics_calibration.json `
+  --output-csv output_physics_v24.csv
 ```
+
+数据布局会作为响应族单独审计，不能通过统一物理模型的旧处理布局不会被静默混入标定。
+超出时间窗的物理候选会被拒绝；低计数、形状失配或理想 Fisher 增益不足时，no-harm gate
+返回原直方图。
+
+详细公式、边界和验证规则见
+[`v24_framework/PHYSICS_INFORMED.md`](v24_framework/PHYSICS_INFORMED.md)。
 
 ## 验证
 
@@ -81,8 +72,4 @@ python .\v24_framework\verify_release.py
 python -m pytest .\v24_framework\tests -q
 ```
 
-## 数据策略
-
-Git 包含 v24 推理所需的小型锁定模型和物理目标 PSF。原始实验直方图、
-1000组派生输出、论文图片及大型结果包不上传；重新校准时通过命令行提供
-本地实验数据路径。
+Git 只保存代码、小型锁定模型和文档。原始实验直方图、派生结果、图像和大型标定输出均不上传。
