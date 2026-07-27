@@ -95,6 +95,30 @@ best response has excessive Jensen-Shannon divergence, or the predicted
 translation Fisher-information gain is negligible. RL iterations scale with
 signal count instead of remaining fixed at 512 for every condition.
 
+The adaptive compensator's `fisher_gain` is a morphology-based ratio between
+the generated broad and target response shapes. It is useful as a no-harm
+gate, but it is not a claim that deterministic RL creates that amount of new
+measurement Fisher information. RL output bins are correlated and must not be
+treated as independent Poisson samples.
+
+## Poisson/Fisher Residual Alignment
+
+The optional `fisher_residual` module uses a direction-specific broad-response
+template to estimate the current raw-histogram center with a Poisson location
+likelihood. If signal count and translation Fisher information pass fixed
+offline thresholds, the module translates the physics-RL histogram to that
+center while preserving counts. Otherwise it returns the physics-RL center and
+shape unchanged.
+
+Calibration should use an independent or explicitly separated calibration
+segment. Fine template structure must be audited with two non-overlapping
+template halves. `cross_power_clock_crlb_ps` uses the derivative cross product
+between those halves so finite-count texture is not mistaken for repeatable
+Fisher information.
+
+The complete procedure and the external `50 km / 280 Hz` audit are documented
+in `FISHER_RESIDUAL_FLOW_CN.md`.
+
 ## Claim Boundary
 
 Synthetic histograms validate morphology, estimator bias, and controlled

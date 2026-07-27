@@ -210,6 +210,66 @@ FFT. The JSON sidecar records the selected effective condition, fit
 divergence, Fisher-information gate, iteration count, centers, widths, and
 count conservation.
 
+## Poisson/Fisher Residual Extension
+
+The optional `PhysicsFisherResidualCorrector` adds a stateless center-residual
+stage after physics RL. It calibrates direction-specific broad-response
+templates offline, estimates the current raw-histogram center with a Poisson
+location likelihood, applies a Fisher no-harm gate, and translates the
+already-generated compensated histogram to the accepted center.
+
+```text
+one current raw histogram
+  -> physics response and RL histogram reconstruction
+  -> current-histogram Poisson template center
+  -> Fisher-information no-harm gate
+  -> count-preserving translation of the RL histogram
+  -> one final compensated histogram
+```
+
+This stage still uses no adjacent histograms, run-level mean, time-series
+filter, or bounded center correction. The model can be calibrated and used as:
+
+```python
+from v24_framework.physics_informed import (
+    FisherResidualConfig,
+    PhysicsFisherCompensationPipeline,
+    PhysicsFisherResidualCorrector,
+)
+
+corrector = PhysicsFisherResidualCorrector.calibrate(
+    calibration_histograms,          # shape: (2, samples, odd_bins)
+    coarse_centers_ps,
+    physics_alignment_centers_ps,
+    FisherResidualConfig(
+        template_smoothing_sigma_bins=12.0,
+        minimum_fisher_information_per_ps2=0.04,
+    ),
+)
+
+result = corrector.align_compensated_histogram(
+    raw_local_histogram,
+    physics_rl_histogram,
+    direction=1,
+    coarse_center_ps=coarse_center_ps,
+)
+
+# Optional one-call deployment wrapper around PhysicsAdaptiveCompensator.
+pipeline = PhysicsFisherCompensationPipeline(physics_operator, corrector)
+result = pipeline.infer(raw_full_histogram, direction=1, absolute_time_ps=full_axis_ps)
+final_histogram = result.compensated_counts
+```
+
+For the audited external `50 km / 280 Hz` data, the combined method retained a
+median output FWHM of `155.9 ps` and obtained `2.365 ps` full-sequence and
+`2.490 ps` strict-held-out TDEV at 10 s. The cross-power Fisher audit places
+the reproducible limit near `2.4 ps`; v24 does not infer a 1.8 ps claim merely
+from the narrowed RL-output FWHM.
+
+See `FISHER_RESIDUAL_FLOW_CN.md` for the full equations, calibration/holdout
+protocol, Fisher covariance interpretation, result table, and 1.8 ps claim
+boundary.
+
 ## Files
 
 ```text
@@ -224,9 +284,11 @@ v24_framework/
   run_physics_calibration.py
   run_physics_inference.py
   PHYSICS_INFORMED.md
+  FISHER_RESIDUAL_FLOW_CN.md
   physics_informed/
     adaptive_compensator.py
     dataset.py
+    fisher_residual.py
     forward_model.py
   MODEL_CARD.md
   models/
