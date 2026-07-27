@@ -111,10 +111,15 @@ center while preserving counts. Otherwise it returns the physics-RL center and
 shape unchanged.
 
 Calibration should use an independent or explicitly separated calibration
-segment. Fine template structure must be audited with two non-overlapping
-template halves. `cross_power_clock_crlb_ps` uses the derivative cross product
-between those halves so finite-count texture is not mistaken for repeatable
-Fisher information.
+acquisition. Splitting the evaluation run into an early calibration segment and
+a later held-out segment is useful only as a same-run diagnostic; it does not
+qualify as reference-free external validation. The public calibration API
+therefore requires `calibration_is_independent=True` and rejects a false value.
+
+Fine template structure should also be audited with two non-overlapping halves
+of the independent calibration acquisition. `cross_power_clock_crlb_ps` uses
+their derivative cross product so finite-count texture is not mistaken for
+repeatable Fisher information.
 
 The complete procedure and the external `50 km / 280 Hz` audit are documented
 in `FISHER_RESIDUAL_FLOW_CN.md`.

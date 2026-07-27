@@ -140,9 +140,11 @@ Recalibration uses the first 500 pairs; samples 501-1000 are the strict
 held-out segment. Experimental histograms and generated result packages are
 not stored in Git.
 
-## Reported External Result
+## Reported Same-Run Calibration/Held-Out Baseline
 
-On the locked 1000-pair external `50 km / 280 Hz` evaluation:
+The locked empirical-PSF model used pairs 1-500 of the `50 km / 280 Hz` run
+for recalibration and pairs 501-1000 as its held-out segment. It is therefore a
+same-run calibration/held-out baseline, not a reference-free external result:
 
 | Metric | Before | V24 output |
 |---|---:|---:|
@@ -152,7 +154,9 @@ On the locked 1000-pair external `50 km / 280 Hz` evaluation:
 | Width reduction | 1.00x | 2.91x |
 | Stability improvement | 1.00x | 1.72x |
 
-The independent `1.6 ps` target was not reached and is not claimed.
+The independent `1.6 ps` target was not reached and is not claimed. This
+empirical model must not be used to support unknown-condition or zero-reference
+generalization claims.
 
 ## Physics-Informed Extension
 
@@ -241,7 +245,8 @@ corrector = PhysicsFisherResidualCorrector.calibrate(
     calibration_histograms,          # shape: (2, samples, odd_bins)
     coarse_centers_ps,
     physics_alignment_centers_ps,
-    FisherResidualConfig(
+    calibration_is_independent=True,
+    config=FisherResidualConfig(
         template_smoothing_sigma_bins=12.0,
         minimum_fisher_information_per_ps2=0.04,
     ),
@@ -260,11 +265,14 @@ result = pipeline.infer(raw_full_histogram, direction=1, absolute_time_ps=full_a
 final_histogram = result.compensated_counts
 ```
 
-For the audited external `50 km / 280 Hz` data, the combined method retained a
-median output FWHM of `155.9 ps` and obtained `2.365 ps` full-sequence and
-`2.490 ps` strict-held-out TDEV at 10 s. The cross-power Fisher audit places
-the reproducible limit near `2.4 ps`; v24 does not infer a 1.8 ps claim merely
-from the narrowed RL-output FWHM.
+The earlier `2.365 ps` full-sequence and `2.490 ps` pairs-501-1000 values used
+pairs 1-500 of that same 280 Hz run to construct the Poisson template. They are
+retained only as a same-run diagnostic and are withdrawn from external-result
+claims. With no 280 Hz histogram used to construct a PSF or residual template,
+the physics-generated-PSF run produced a median FWHM of about `155.9 ps` and
+10 s TDEV of about `2.827 ps` for all 1000 pairs (`2.841 ps` for pairs
+501-1000). A deployable Fisher residual stage requires a separate acquisition
+with the same broad-response state.
 
 See `FISHER_RESIDUAL_FLOW_CN.md` for the full equations, calibration/holdout
 protocol, Fisher covariance interpretation, result table, and 1.8 ps claim

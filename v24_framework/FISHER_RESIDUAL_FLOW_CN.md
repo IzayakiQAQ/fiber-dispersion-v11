@@ -30,7 +30,7 @@ one measured histogram
 
 ### 2.1 数据划分
 
-按时间顺序或独立实验划分标定集与严格留出集。参数选择只能读取标定集。50 km / 280 Hz 审计使用前 500 组构造模型，后 500 组只做最终验收。
+可部署模型必须使用与评价运行相互独立的采集数据标定。把同一次运行按时间切成前 500 组标定、后 500 组留出，只能检查同一运行内的泛化，不能称为外部零参考验证。代码要求显式传入 `calibration_is_independent=True`；若为 `False` 会直接拒绝构造模型。
 
 ### 2.2 方向独立的 broad-response 模板
 
@@ -105,17 +105,14 @@ I_out = (d mu_y / d theta)^T C_y^-1 (d mu_y / d theta),
 
 并满足确定性数据处理的 `I_out <= I_in`。软件反卷积可以改善估计器效率和峰形，但不能按 FWHM 缩窄倍数凭空增加输入 Fisher 信息。
 
-## 6. 50 km / 280 Hz 锁定结果
+## 6. 50 km / 280 Hz 结果边界
 
-| 指标 | 补偿前 | 物理 RL | Physics RL + Poisson/Fisher |
-|---|---:|---:|---:|
-| FWHM 中位数 | 506.028 ps | 155.897 ps | 155.900 ps |
-| 10 s TDEV，全 1000 组 | 4.098 ps | 2.811 ps | 2.365 ps |
-| 10 s TDEV，严格留出 501--1000 | 4.036 ps | 2.829 ps | 2.490 ps |
-| 100 s TDEV | 0.415 ps | 0.286 ps | 0.237 ps |
-| 1000 s TDEV | 0.0420 ps | 0.0293 ps | 0.0242 ps |
+| 方法 | 280 Hz 数据是否参与模型构造 | FWHM 中位数 | 10 s TDEV | 结论 |
+|---|---|---:|---:|---|
+| 纯物理生成 PSF | 否 | 约 155.9 ps | 全量 2.827 ps；后 500 组 2.841 ps | 可作为零参考评价 |
+| Poisson/Fisher 残差诊断 | 前 500 组构造模板 | 约 155.9 ps | 全量 2.365 ps；后 500 组 2.490 ps | 仅同运行诊断，不是外部结果 |
 
-该批数据的交叉功率 Fisher 下界约为 `2.39--2.45 ps`。平滑 1.5 ps 的普通单模板公式可给出约 1.72 ps，但两半模板导数相关性只有 0.22/0.34；去除不可重复纹理后，下界回到 2.45 ps。因此 v24 不声明当前 280 Hz 数据已经达到 1.8 ps。
+此前 `2.365/2.490 ps` 使用了 280 Hz 前 500 组构造 Poisson 模板，因此从外部结果声明中撤回。该批数据的交叉功率 Fisher 审计同样属于事后分析，不是模型先验。平滑 1.5 ps 的普通单模板公式可给出约 1.72 ps，但两半模板导数相关性只有 0.22/0.34；去除不可重复纹理后，下界回到约 2.4 ps。
 
 ## 7. 达到 1.8 ps 的条件
 
@@ -142,7 +139,8 @@ corrector = PhysicsFisherResidualCorrector.calibrate(
     histograms,
     coarse_centers_ps,
     physics_alignment_centers_ps,
-    FisherResidualConfig(
+    calibration_is_independent=True,
+    config=FisherResidualConfig(
         template_smoothing_sigma_bins=12.0,
         minimum_fisher_information_per_ps2=0.04,
     ),

@@ -167,7 +167,14 @@ class PhysicsFisherResidualCorrector:
         self,
         templates: np.ndarray,
         config: FisherResidualConfig | None = None,
+        *,
+        calibration_is_independent: bool,
     ) -> None:
+        if not calibration_is_independent:
+            raise ValueError(
+                "Fisher residual templates must come from an independent calibration "
+                "acquisition, not from a split of the evaluation run"
+            )
         values = np.asarray(templates, dtype=np.float64)
         if values.ndim != 2 or values.shape[0] != 2:
             raise ValueError("templates must have shape (2, bins)")
@@ -175,6 +182,7 @@ class PhysicsFisherResidualCorrector:
             raise ValueError("template length must be odd")
         self.templates = np.stack([_normalize(values[0]), _normalize(values[1])])
         self.config = config or FisherResidualConfig()
+        self.calibration_is_independent = True
         if self.config.bin_width_ps <= 0.0:
             raise ValueError("bin_width_ps must be positive")
 
@@ -184,8 +192,15 @@ class PhysicsFisherResidualCorrector:
         histograms: np.ndarray,
         coarse_centers_ps: np.ndarray,
         alignment_centers_ps: np.ndarray | None = None,
+        *,
+        calibration_is_independent: bool,
         config: FisherResidualConfig | None = None,
     ) -> "PhysicsFisherResidualCorrector":
+        if not calibration_is_independent:
+            raise ValueError(
+                "A same-run calibration/held-out split is diagnostic only and cannot "
+                "build a deployable Fisher residual model"
+            )
         settings = config or FisherResidualConfig()
         values = np.asarray(histograms, dtype=np.float64)
         coarse = np.asarray(coarse_centers_ps, dtype=np.float64)
@@ -222,7 +237,11 @@ class PhysicsFisherResidualCorrector:
                 settings.template_smoothing_sigma_bins,
                 mode="nearest",
             )
-        return cls(templates, settings)
+        return cls(
+            templates,
+            settings,
+            calibration_is_independent=True,
+        )
 
     def estimate_center(
         self,
@@ -371,11 +390,18 @@ class PhysicsFisherResidualCorrector:
             ),
             uses_adjacent_histograms=np.asarray(False),
             bounded_center_correction=np.asarray(False),
+            calibration_is_independent=np.asarray(True),
         )
 
     @classmethod
     def load(cls, path: str | Path) -> "PhysicsFisherResidualCorrector":
         with np.load(Path(path), allow_pickle=False) as data:
+            if "calibration_is_independent" not in data.files or not bool(
+                data["calibration_is_independent"]
+            ):
+                raise ValueError(
+                    "Refusing a residual model without independent-calibration provenance"
+                )
             templates = np.stack(
                 (data["template_direction1"], data["template_direction2"])
             )
@@ -394,7 +420,11 @@ class PhysicsFisherResidualCorrector:
                 maximum_newton_step_ps=float(data["maximum_newton_step_ps"]),
                 maximum_residual_shift_ps=float(data["maximum_residual_shift_ps"]),
             )
-        return cls(templates, config)
+        return cls(
+            templates,
+            config,
+            calibration_is_independent=True,
+        )
 
 
 class PhysicsFisherCompensationPipeline:
