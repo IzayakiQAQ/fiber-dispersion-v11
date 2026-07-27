@@ -1,15 +1,76 @@
 # V24 Direct Histogram Dispersion Compensation
 
-`v24_framework` is the standalone final release of the stateless
-histogram-to-histogram dispersion compensator. It includes the locked
-direction-specific model, a Python API, a CSV command-line interface, tests,
-and the external 1000-group recalibration/evaluation script.
+`v24_framework` is the standalone release of the stateless
+histogram-to-histogram dispersion compensator. It now separates the recommended
+independent-physics protocol from the earlier same-run empirical baseline.
 
 The release does not use adjacent histograms, a clock-difference sequence, or
 run-level post-processing. One histogram is independently transformed into one
 nonnegative, count-preserving compensated histogram.
 
-## Locked Method
+## Recommended Frozen Physics Protocol
+
+Use two separate commands. The freeze command deliberately has no
+`--source-root` or `--input-cache` argument, so evaluation histograms cannot be
+used to construct the PSF or select hyperparameters.
+
+```powershell
+python .\v24_framework\freeze_blind_physics_protocol.py `
+  --calibration-json .\independent_100hz\physics_calibration.json `
+  --calibration-metrics .\independent_100hz\empirical_condition_metrics.csv `
+  --length-km 50 `
+  --bandwidth-nm 0.8 `
+  --count-rate-hz 280 `
+  --output-dir .\v24_framework\outputs\blind_physics_frozen
+```
+
+The command uses only independently acquired calibration statistics and
+predeclared Poisson simulations. It writes `frozen_config.json`, the complete
+simulation candidate table, and `frozen_config.sha256`. The selected RL
+iteration count and center window cannot be overwritten in place.
+
+After freezing, evaluate the external run exactly once:
+
+```powershell
+python .\v24_framework\run_blind_physics_external_1000.py `
+  --frozen-config .\v24_framework\outputs\blind_physics_frozen\frozen_config.json `
+  --source-root "E:\path\to\50km_280Hz" `
+  --max-pairs 1000 `
+  --output-dir .\v24_framework\outputs\blind_physics_external_1000
+```
+
+An existing input cache can be supplied with `--input-cache` instead of
+`--source-root`. The cache is only a loader optimization and must contain
+`local_histograms`, `coarse_center_abs_ps`, `quality_center_abs_ps`, and
+`input_fwhm_gaussian_ps`.
+
+The evaluation command verifies the frozen-config SHA-256 and the independent
+physics-calibration SHA-256 before reading the external data. It refuses a
+nonempty output directory and executes only the frozen configuration.
+
+| Quantity | Frozen from |
+|---|---|
+| Direction-specific broad PSF | Independent 100 Hz physics calibration: dispersion and IRF |
+| Direction-specific 0 km target PSF | The same independent physics model at `L=0` |
+| RL iterations and center window | Predeclared physics/Poisson simulations only |
+| Evaluation histogram | Used only as the current single-histogram input |
+| Fisher residual template | Disabled unless a separate same-response calibration exists |
+| Bounded or time-series correction | Disabled |
+
+For the audited 50 km / 0.8 nm / 280 Hz locked replay, the independently
+frozen configuration selected `R=512` and a `120 ps` center half-window. It
+reduced mean FWHM from `505.97 ps` to `160.21 ps` and 10 s TDEV from `4.098 ps`
+to `2.869 ps`. This is the honest reference-free code-path result and does not
+reach `1.8 ps`. Because this run had been inspected before the protocol was
+implemented, it is a code-enforced retrospective locked replay, not a pristine
+prospective blind experiment. A new untouched acquisition is required for the
+strongest paper claim.
+
+## Legacy Same-Run Locked Model
+
+The tracked `direct_histogram_model_v24.npz` is retained for reproducibility.
+Its empirical broad PSF was estimated from pairs 1-500 of the same 50 km /
+280 Hz run, so it must not be presented as an external or reference-free model.
 
 ```text
 one raw histogram
@@ -120,7 +181,7 @@ python -m pytest .\v24_framework\tests -q
 `verify_release.py` checks the model hash, locked metadata, nonnegativity,
 count conservation, and both direction-specific operators.
 
-## Recalibrate And Reproduce
+## Legacy Same-Run Reproduction
 
 The release ships the script used for the external 1000-group selection and
 evaluation:
@@ -174,7 +235,7 @@ Build the condition manifest and calibrate on measured histograms:
 
 ```powershell
 python .\v24_framework\run_physics_calibration.py `
-  --dataset-root "E:\lzy\测试结果\补偿数据" `
+  --dataset-root "E:\path\to\100Hz_calibration_histograms" `
   --output-dir .\v24_framework\results\physics_calibration
 ```
 
@@ -273,12 +334,11 @@ its PSF, but it did use pairs 1-500 to choose the RL iteration checkpoint. Its
 `155.9 ps` median FWHM and `2.827/2.841 ps` TDEV values are therefore post-hoc
 PSF-independence diagnostics, not a fully frozen blind external result.
 
-No fully reference-free `50 km / 280 Hz` stability result is currently claimed.
-Such a result requires every PSF, iteration count, center window, smoothing
-scale, and gate threshold to be frozen using only independent 100 Hz data or
-predeclared physics simulations before the 280 Hz run is evaluated once. A
-deployable Fisher residual stage additionally requires a separate acquisition
-with the same broad-response state.
+The frozen-physics scripts enforce that every PSF, iteration count, center
+window, and threshold is selected before an evaluation input can be supplied.
+A deployable Fisher residual stage still requires a separate acquisition with
+the same broad-response state; without it, the residual is disabled rather
+than fitted from the evaluation run.
 
 See `FISHER_RESIDUAL_FLOW_CN.md` for the full equations, calibration/holdout
 protocol, Fisher covariance interpretation, result table, and 1.8 ps claim
@@ -297,6 +357,8 @@ v24_framework/
   verify_release.py
   run_physics_calibration.py
   run_physics_inference.py
+  freeze_blind_physics_protocol.py
+  run_blind_physics_external_1000.py
   PHYSICS_INFORMED.md
   FISHER_RESIDUAL_FLOW_CN.md
   physics_informed/
