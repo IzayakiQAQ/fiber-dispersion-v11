@@ -268,10 +268,16 @@ final_histogram = result.compensated_counts
 The earlier `2.365 ps` full-sequence and `2.490 ps` pairs-501-1000 values used
 pairs 1-500 of that same 280 Hz run to construct the Poisson template. They are
 retained only as a same-run diagnostic and are withdrawn from external-result
-claims. With no 280 Hz histogram used to construct a PSF or residual template,
-the physics-generated-PSF run produced a median FWHM of about `155.9 ps` and
-10 s TDEV of about `2.827 ps` for all 1000 pairs (`2.841 ps` for pairs
-501-1000). A deployable Fisher residual stage requires a separate acquisition
+claims. The physics-generated-PSF run did not use 280 Hz histograms to build
+its PSF, but it did use pairs 1-500 to choose the RL iteration checkpoint. Its
+`155.9 ps` median FWHM and `2.827/2.841 ps` TDEV values are therefore post-hoc
+PSF-independence diagnostics, not a fully frozen blind external result.
+
+No fully reference-free `50 km / 280 Hz` stability result is currently claimed.
+Such a result requires every PSF, iteration count, center window, smoothing
+scale, and gate threshold to be frozen using only independent 100 Hz data or
+predeclared physics simulations before the 280 Hz run is evaluated once. A
+deployable Fisher residual stage additionally requires a separate acquisition
 with the same broad-response state.
 
 See `FISHER_RESIDUAL_FLOW_CN.md` for the full equations, calibration/holdout
