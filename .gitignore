@@ -17,6 +17,7 @@ artifacts/
 *.pt
 *.pth
 *.npy
+*.npz
 *.csv
 
 # Figures generated locally
@@ -30,3 +31,12 @@ artifacts/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local archived versions are intentionally absent from the V25 release tree.
+v11_framework/
+v17_framework/
+v24_framework/
+
+# V25 runtime products
+v25_framework/outputs/
+v25_framework/frozen/

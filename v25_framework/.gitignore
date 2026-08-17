@@ -1,0 +1,8 @@
+outputs/
+frozen/
+*.csv
+*.json
+*.sha256
+*.npz
+__pycache__/
+.pytest_cache/
