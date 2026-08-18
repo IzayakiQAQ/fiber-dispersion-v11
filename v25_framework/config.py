@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
-SCHEMA = "fiber-dispersion-v25"
+SCHEMA = "fiber-dispersion-v25-neural-psf"
 
 
 @dataclass(frozen=True)
@@ -103,27 +103,35 @@ class OperatorSettings:
 
 @dataclass(frozen=True)
 class FrozenConfig:
-    """Complete deterministic V25 deployment configuration."""
+    """Complete deterministic V25 neural-PSF deployment configuration."""
 
     length_km: float
     bandwidth_nm: float
     calibration_sha256: str
+    neural_psf_model: str
+    neural_psf_sha256: str
     physics: PhysicsParameters = PhysicsParameters()
     operator: OperatorSettings = OperatorSettings()
     schema: str = SCHEMA
-    provenance: str = "independent_physics_calibration"
+    provenance: str = "independent_neural_psf_calibration"
 
     def validate(self) -> None:
         if self.schema != SCHEMA:
             raise ValueError(f"Unsupported schema: {self.schema!r}")
-        if self.provenance != "independent_physics_calibration":
-            raise ValueError("V25 requires independent_physics_calibration provenance")
+        if self.provenance != "independent_neural_psf_calibration":
+            raise ValueError(
+                "V25 requires independent_neural_psf_calibration provenance"
+            )
         if self.length_km < 0.0:
             raise ValueError("length_km must be nonnegative")
         if self.bandwidth_nm <= 0.0:
             raise ValueError("bandwidth_nm must be positive")
         if not self.calibration_sha256:
             raise ValueError("calibration_sha256 must identify the independent calibration")
+        if not self.neural_psf_model:
+            raise ValueError("neural_psf_model must identify the frozen network")
+        if len(self.neural_psf_sha256) != 64:
+            raise ValueError("neural_psf_sha256 must be a SHA-256 digest")
         self.physics.validate()
         self.operator.validate()
 
@@ -141,10 +149,14 @@ class FrozenConfig:
             length_km=float(payload["length_km"]),
             bandwidth_nm=float(payload["bandwidth_nm"]),
             calibration_sha256=str(payload["calibration_sha256"]),
+            neural_psf_model=str(payload["neural_psf_model"]),
+            neural_psf_sha256=str(payload["neural_psf_sha256"]),
             physics=PhysicsParameters.from_mapping(payload.get("physics", {})),
             operator=OperatorSettings.from_mapping(payload.get("operator", {})),
             schema=str(payload.get("schema", SCHEMA)),
-            provenance=str(payload.get("provenance", "independent_physics_calibration")),
+            provenance=str(
+                payload.get("provenance", "independent_neural_psf_calibration")
+            ),
         )
         result.validate()
         return result

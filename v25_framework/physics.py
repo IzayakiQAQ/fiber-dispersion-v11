@@ -6,6 +6,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
 from .config import FrozenConfig, PhysicsParameters
+from .neural_psf import NeuralPSFModel
 
 
 SPEED_OF_LIGHT_NM_PER_PS = 299_792.458
@@ -42,7 +43,13 @@ def fwhm_ps(values: np.ndarray, bin_width_ps: float = 1.0) -> float:
 def translation_fisher(probability: np.ndarray, bin_width_ps: float) -> float:
     p = _normalize(probability)
     derivative = np.gradient(p, float(bin_width_ps))
-    return float(np.sum(np.square(derivative) / np.clip(p, 1e-15, None)))
+    # Ignore numerical crop/interpolation edges far below the observable PSF.
+    # Without this support mask, a transition from 1e-14 to exact zero can
+    # dominate the discrete Fisher sum even though it carries no useful count.
+    support = p >= max(float(np.max(p)) * 1e-7, 1e-15)
+    return float(
+        np.sum(np.square(derivative[support]) / np.clip(p[support], 1e-15, None))
+    )
 
 
 class PhysicsHistogramGenerator:
@@ -147,10 +154,16 @@ class DirectionKernels:
     target_fwhm_ps: float
     fisher_gain: float
     cropped_edge_mass: float
+    broad_neural_width_scale: float
+    target_neural_width_scale: float
+    broad_neural_confidence: float
+    target_neural_confidence: float
 
 
-def build_direction_kernels(config: FrozenConfig, direction: int) -> DirectionKernels:
-    """Build deterministic broad and 0 km kernels from a frozen config."""
+def build_direction_kernels(
+    config: FrozenConfig, direction: int, neural_model: NeuralPSFModel
+) -> DirectionKernels:
+    """Build physical PSFs and apply the frozen neural residual interpolator."""
 
     config.validate()
     generator = PhysicsHistogramGenerator(config.physics)
@@ -172,8 +185,20 @@ def build_direction_kernels(config: FrozenConfig, direction: int) -> DirectionKe
     half = settings.kernel_bins // 2
     center = settings.synthesis_bins // 2
     selection = slice(center - half, center + half + 1)
-    broad = _normalize(broad_full[selection])
-    target = _normalize(target_full[selection])
+    broad_physics = _normalize(broad_full[selection])
+    target_physics = _normalize(target_full[selection])
+    broad, broad_prediction = neural_model.correct(
+        broad_physics,
+        config.length_km,
+        config.bandwidth_nm,
+        direction,
+    )
+    target, target_prediction = neural_model.correct(
+        target_physics,
+        0.0,
+        config.bandwidth_nm,
+        direction,
+    )
     edge = min(settings.edge_bins, settings.kernel_bins // 4)
     cropped_edge_mass = float(
         np.sum(broad[:edge]) + np.sum(broad[-edge:])
@@ -194,4 +219,8 @@ def build_direction_kernels(config: FrozenConfig, direction: int) -> DirectionKe
         target_fwhm_ps=fwhm_ps(target, settings.bin_width_ps),
         fisher_gain=fisher_gain,
         cropped_edge_mass=cropped_edge_mass,
+        broad_neural_width_scale=broad_prediction.width_scale,
+        target_neural_width_scale=target_prediction.width_scale,
+        broad_neural_confidence=broad_prediction.confidence,
+        target_neural_confidence=target_prediction.confidence,
     )

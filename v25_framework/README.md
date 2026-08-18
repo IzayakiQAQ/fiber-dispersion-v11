@@ -1,44 +1,57 @@
-# V25 Frozen-Physics Dispersion Compensation
+# V25 Physics-Informed Neural PSF Compensation
 
-V25 是单一、无状态的 coincidence-histogram 色散补偿实现。仓库只发布原理与代码；实验直方图、校准结果、冻结配置、输出曲线和模型数据均由使用者在本地生成，不进入 Git。
+V25 用神经网络补全未测长度/带宽条件下的 PSF，但不让待评估直方图参与 PSF、迭代数或参考响应构造。仓库只发布原理和代码；实验数据、训练产物、冻结权重和结果均保留在本地并由 `.gitignore` 排除。
 
-## 技术栈
+## 方法边界
 
-- Python 3.10+
-- NumPy：数组、FFT 频率网格与数值计算
-- SciPy：Gaussian IRF、FFT 卷积和 Richardson-Lucy 更新
-- pytest：性质测试
+神经网络学习的是实验响应相对物理模型的受限残差：
 
-## 唯一算法流程
+\[
+s_\theta=\exp\left[f_\theta(L,B,d)\right],\qquad
+p_{\rm NPSF}(t)=\frac{1}{s_\theta}
+p_{\rm phy}\left(\frac{t}{s_\theta};L,B,d\right).
+\]
+
+其中 `L` 为光纤长度、`B` 为 WSS 带宽、`d` 为传播方向。`f_theta` 是 `4-12-8-1` tanh MLP，宽度尺度被限制在 `1/1.5` 到 `1.5`。距离可信训练条件越远，网络残差越连续衰减到零，因此超出覆盖范围时自动退回物理 PSF。
+
+网络不读取评估直方图，也不直接生成任意 2049-bin 曲线。这保证了 PSF 非负、归一化、中心不漂移，并避免把异常处理结果学习成物理规律。
+
+## 算法流程
 
 ```text
-独立校准的物理参数
-  -> 冻结链路长度、WSS 带宽、方向 IRF 与算法常量
-  -> 为两个传播方向分别生成 broad PSF 和 0 km target PSF
-  -> SHA-256 锁定配置
+独立实验条件集
+  -> 每个长度/带宽/方向抽取代表性直方图
+  -> Gaussian 宽度测量与物理一致性门控
+  -> 物理 PSF 宽度作为基线
+  -> MLP 学习 log(W_measured / W_physics)
+  -> 整组条件留一验证
+  -> 冻结网络、训练清单和 SHA-256
+
+指定待部署条件 (L, B, direction)
+  -> CW-SPDC + Gaussian WSS + SMF + IRF 生成物理 PSF
+  -> 冻结 MLP 预测 PSF 残差
+  -> 生成方向独立 broad PSF 与 0 km target PSF
 
 当前单张直方图
-  -> 平滑粗定位与固定 2049-bin 局部窗口
-  -> 边缘背景估计
-  -> 使用冻结 broad PSF 的 Richardson-Lucy 解卷积
-  -> 与冻结 0 km target PSF 重卷积
+  -> 单样本粗定位和固定 2049-bin 局部窗口
+  -> Poisson 边缘背景均值
+  -> 冻结 broad PSF 的 Richardson-Lucy 解卷积
+  -> 冻结 0 km target PSF 重卷积
   -> 非负、计数守恒的补偿直方图
-  -> 从补偿直方图直接计算本次中心
+  -> 对补偿直方图执行冻结 target PSF 的 Poisson 中心拟合
 ```
 
-评估直方图只作为当前输入，不参与 PSF 构造、迭代数选择或中心残差学习。算法不使用相邻直方图、钟差序列滤波、bounded correction 或同一评估数据的经验模板。
+推理不使用相邻直方图、钟差序列滤波、run-level 均值、bounded correction 或同一评估数据的经验模板。
 
 ## 物理模型
 
-代码中的确定性前向模型包含：
-
-- CW C46 泵浦和能量反关联 C57/C35 双光子谱；
+- C46 CW 泵浦与能量反关联 C57/C35 双光子谱；
 - 标称 Gaussian WSS 强度滤波；
-- 普通单模光纤的二阶色散及可选三阶项；
-- 两个传播方向独立的等效探测/时间标记 IRF；
-- 由 `L=0` 生成的方向相关目标响应。
+- 普通单模光纤二阶色散和可选三阶色散；
+- 两个方向独立的探测器/时间标记等效 IRF；
+- `L=0` 方向响应作为目标 PSF。
 
-Fisher 信息只用于检查冻结目标响应相对展宽响应是否具有更高的平移信息量，不用于根据测试直方图修正输出。
+需要注意：输出峰形变窄会提高输出曲线的形式 Fisher 信息，但确定性后处理不能凭空增加原始观测包含的真实 Fisher 信息。稳定性最终仍受输入展宽、有效符合计数、背景和 PSF 失配限制。
 
 ## 安装
 
@@ -46,56 +59,80 @@ Fisher 信息只用于检查冻结目标响应相对展宽响应是否具有更�
 python -m pip install -r .\v25_framework\requirements.txt
 ```
 
-## 冻结配置
+## 训练 Neural-PSF
 
-独立校准 JSON 可以直接包含物理参数，也可以使用 `{"parameters": {...}}`。冻结命令没有评估数据入口：
+```powershell
+python -m v25_framework.train_neural_psf `
+  --dataset-root "E:\path\to\independent_calibration" `
+  --output-dir .\v25_framework\artifacts\neural_psf `
+  --samples-per-direction 12
+```
+
+训练器输出 `neural_psf_model.npz`、`condition_audit.csv` 和 `training_summary.json`。模型文件仅包含 NumPy 可读取的冻结 MLP 权重。
+
+## 生成未测条件数据
+
+```powershell
+python -m v25_framework.generate_virtual_dataset `
+  --training-summary .\v25_framework\artifacts\neural_psf\training_summary.json `
+  --neural-model .\v25_framework\artifacts\neural_psf\neural_psf_model.npz `
+  --lengths-km "0,25,50,75,100,125" `
+  --bandwidths-nm "0.2,0.4,0.8,2" `
+  --count-rates-hz "50,100,280" `
+  --bins 16385 `
+  --output .\v25_framework\artifacts\virtual_conditions.npz
+```
+
+输出同时包含直方图和精确中心标签。符合计数率只进入 Poisson 采样强度，不参与 PSF 预测。
+
+## 冻结部署条件
 
 ```powershell
 python -m v25_framework.freeze `
-  --calibration-json .\independent_calibration\physics_parameters.json `
+  --calibration-json .\v25_framework\artifacts\neural_psf\training_summary.json `
+  --neural-model .\v25_framework\artifacts\neural_psf\neural_psf_model.npz `
   --length-km 50 `
   --bandwidth-nm 0.8 `
   --iterations 512 `
-  --output .\v25_framework\frozen\v25_50km_0p8nm.json
+  --output .\v25_framework\frozen\50km_0p8nm.json
 ```
 
-命令同时生成 `.sha256` 文件。推理默认拒绝缺失或不匹配的哈希。
+冻结目录包含配置、网络和两个 SHA-256 校验。任何权重或配置变化都会使推理拒绝运行。
 
-## 单直方图推理
+## 推理
 
-输入 CSV 支持一列 `count`，或两列 `time_ps,count`：
+单直方图：
 
 ```powershell
 python -m v25_framework.run_inference .\input.csv `
-  --frozen-config .\v25_framework\frozen\v25_50km_0p8nm.json `
+  --frozen-config .\v25_framework\frozen\50km_0p8nm.json `
   --direction 1 `
   --output-csv .\v25_framework\outputs\compensated.csv
 ```
 
-Python API：
+1000 组盲评：
 
-```python
-from v25_framework import V25Compensator
-
-operator = V25Compensator.from_frozen_json("frozen_config.json")
-result = operator.infer_full(histogram, direction=1, time_ps=absolute_axis_ps)
-
-compensated_histogram = result.compensated
-compensated_axis_ps = result.time_ps
-single_center_ps = result.center_ps
+```powershell
+python -m v25_framework.run_external_1000 `
+  --source-root "E:\path\to\fixed-axis-histograms" `
+  --frozen-config .\v25_framework\frozen\50km_0p8nm.json `
+  --output-dir .\v25_framework\outputs\blind_1000
 ```
-
-`infer_full` 返回定位后的局部补偿直方图；`infer_local` 接受已经截取的固定长度局部直方图。两个接口均为纯单样本推理。
 
 ## 代码结构
 
 ```text
-config.py          冻结配置、严格字段校验和 SHA-256
-physics.py         双光子谱、光纤色散、IRF 与方向 PSF
-compensator.py     定位、RL 解卷积、目标重建和中心估计
-freeze.py          独立物理参数冻结入口
-run_inference.py   单直方图 CSV 推理入口
-tests/             非负性、计数守恒、收窄和哈希测试
+config.py             配置、模型路径和双重 SHA-256
+dataset.py            独立条件发现、宽度拟合和采样
+neural_psf.py         NumPy MLP 推理、覆盖门控和 PSF 变换
+train_neural_psf.py   质量门控、训练和整组条件留一验证
+generate_virtual_dataset.py  未测条件与计数率的虚拟实验数据
+physics.py            双光子谱、色散、IRF 和方向 PSF
+compensator.py        单样本/批量 RL、重建和 Poisson 中心
+freeze.py             网络与物理参数冻结
+run_inference.py      单直方图入口
+run_external_1000.py  固定配置的 1000 组盲评入口
+tests/                数值性质与哈希测试
 ```
 
 ## 验证
@@ -104,4 +141,4 @@ tests/             非负性、计数守恒、收窄和哈希测试
 python -m pytest .\v25_framework\tests -q
 ```
 
-测试只使用代码生成的合成概率分布，不包含实验数据。
+单元测试只使用代码生成的分布，不包含实验数据。
